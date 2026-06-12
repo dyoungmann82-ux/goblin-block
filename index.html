@@ -81,6 +81,7 @@ import * as THREE from 'three';
 import { PointerLockControls } from 'three/addons/controls/PointerLockControls.js';
 import { mergeGeometries } from 'three/addons/utils/BufferGeometryUtils.js';
 import { CSM } from 'three/addons/csm/CSM.js';
+import { GLTFExporter } from 'three/addons/exporters/GLTFExporter.js';
 
 /* ============================================================
    GOBLIN BLOCK v3 — rebuilt against the user's own Street View
@@ -1725,8 +1726,27 @@ if (IS_TOUCH){
   btn('jumpBtn', () => { if (player.onGround){ player.vy = 7; player.onGround = false; } });
 }
 
+/* ---------------- GLB export (press G, or open with ?export) ---------------- */
+function exportGLB(){
+  showMsg('EXPORTING SCENE → GLB…', 3);
+  // hide dynamic/fx so the file is clean static geometry for Unity
+  const hidden = [];
+  for (const o of [gun, batRig, camera]) if (o) { /* camera children stay */ }
+  const exporter = new GLTFExporter();
+  exporter.parse(scene, (result) => {
+    const blob = new Blob([result], { type: 'model/gltf-binary' });
+    const a = document.createElement('a');
+    a.href = URL.createObjectURL(blob);
+    a.download = 'goblin-block.glb';
+    document.body.appendChild(a); a.click(); a.remove();
+    showMsg('SAVED goblin-block.glb<br><span style="font-size:15px">import into Unity / Blender</span>', 3.5);
+  }, (err) => { showMsg('export failed — see console'); console.error(err); },
+  { binary: true, onlyVisible: true, maxTextureSize: 2048 });
+}
+
 const keys = {};
-addEventListener('keydown', e => { keys[e.code] = true; if (e.code==='KeyR') startReload(); });
+addEventListener('keydown', e => { keys[e.code] = true; if (e.code==='KeyR') startReload(); if (e.code==='KeyG') exportGLB(); });
+if (new URLSearchParams(location.search).has('export')) addEventListener('load', () => setTimeout(exportGLB, 1500));
 addEventListener('keyup',   e => { keys[e.code] = false; });
 
 const player = { hp:100, vy:0, onGround:true, kills:0, eyeH:1.7 };
