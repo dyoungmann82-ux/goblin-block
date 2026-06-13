@@ -1002,32 +1002,133 @@ for (const [x,z] of [[6.2,-26],[-6.3,8],[6.4,60]]) aSph(M.trashbag, .35, x,.3,z,
 
 // parked cars
 const carColors=[0xb02020,0x1f3a6a,0x3a3a3a,0xb8b4ac,0x274a2a,0x4a4a52,0x8a2218,0xd8d4c8];
-const headlightM = std({color:0xfff0c8, roughness:.3}), taillightM = std({color:0xa01818, roughness:.3});
+const headlightM = std({color:0xfff0c8, roughness:.3, metalness:.6}), taillightM = std({color:0xa01818, roughness:.3, metalness:.4});
+const chromeTrim = std({color:0xcccccc, roughness:.15, metalness:.9});
+const tireMat = std({color:0x1a1a1a, roughness:.95, metalness:0});
+const rimMat = std({color:0xaaaaaa, roughness:.2, metalness:.85});
+const underMat = std({color:0x111111, roughness:.9});
+function carWheel(radius){
+  const wg = new THREE.Group();
+  const tire = new THREE.Mesh(new THREE.TorusGeometry(radius, radius*.32, 10, 18), tireMat);
+  tire.rotation.x = Math.PI/2; wg.add(tire);
+  const rim = new THREE.Mesh(new THREE.CylinderGeometry(radius*.62, radius*.62, .06, 14), rimMat);
+  rim.rotation.z = Math.PI/2; wg.add(rim);
+  const hub = new THREE.Mesh(new THREE.CylinderGeometry(radius*.18, radius*.18, .08, 8), chromeTrim);
+  hub.rotation.z = Math.PI/2; wg.add(hub);
+  for(let i=0;i<5;i++){
+    const spoke = new THREE.Mesh(new THREE.BoxGeometry(.04, radius*.52, .04), rimMat);
+    spoke.rotation.z = Math.PI/2; spoke.rotation.x = i*(Math.PI/2.5);
+    spoke.position.set(0,0,0); wg.add(spoke);
+  }
+  return wg;
+}
+function carBody(shape, bodyM){
+  const pts = [];
+  if(shape===0){ // sedan
+    pts.push(new THREE.Vector2(0,0), new THREE.Vector2(.92,0), new THREE.Vector2(.95,.08),
+      new THREE.Vector2(.95,.52), new THREE.Vector2(.88,.62), new THREE.Vector2(.82,.72),
+      new THREE.Vector2(.78,1.12), new THREE.Vector2(.72,1.2), new THREE.Vector2(.58,1.26),
+      new THREE.Vector2(0,1.28));
+  } else { // SUV / hatchback
+    pts.push(new THREE.Vector2(0,0), new THREE.Vector2(.96,0), new THREE.Vector2(.98,.1),
+      new THREE.Vector2(.98,.58), new THREE.Vector2(.92,.68), new THREE.Vector2(.88,.78),
+      new THREE.Vector2(.84,1.28), new THREE.Vector2(.78,1.36), new THREE.Vector2(.6,1.42),
+      new THREE.Vector2(0,1.44));
+  }
+  const lathe = new THREE.LatheGeometry(pts, 18, 0, Math.PI);
+  const m = new THREE.Mesh(lathe, bodyM);
+  m.rotation.z = Math.PI/2; m.rotation.y = Math.PI/2;
+  m.scale.set(1, 1, shape===0? 2.1 : 1.8);
+  m.castShadow = true;
+  return m;
+}
 function car(x,z,ry=0){
   const g = new THREE.Group();
-  const bodyM = std({color:carColors[Math.random()*carColors.length|0], roughness:.35, metalness:.55});
-  const b = new THREE.Mesh(new THREE.BoxGeometry(1.9,.7,4.0), bodyM);
-  b.position.y=.72; b.castShadow=true; g.add(b);
-  const hood = new THREE.Mesh(new THREE.BoxGeometry(1.84,.34,1.1), bodyM);
-  hood.position.set(0,.92,1.65); hood.rotation.x = .1; g.add(hood);
-  const trunk = new THREE.Mesh(new THREE.BoxGeometry(1.84,.4,.9), bodyM);
-  trunk.position.set(0,.95,-1.7); trunk.rotation.x = -.07; g.add(trunk);
-  const cab = new THREE.Mesh(new THREE.BoxGeometry(1.62,.6,2.1), bodyM);
-  cab.position.set(0,1.42,-.15); g.add(cab);
-  const glass = new THREE.Mesh(new THREE.BoxGeometry(1.66,.46,2.25), M.carGlass);
-  glass.position.set(0,1.4,-.15); g.add(glass);
-  for (const s of [1,-1]){ // bumpers, mirrors, lights
-    const bump = new THREE.Mesh(new THREE.BoxGeometry(1.94,.18,.22), M.pole);
-    bump.position.set(0,.5,s*2.05); g.add(bump);
-    const mir = new THREE.Mesh(new THREE.SphereGeometry(.07,6,5), bodyM);
-    mir.position.set(s*.92,1.28,.85); g.add(mir);
-    const li = new THREE.Mesh(new THREE.SphereGeometry(.09,6,5), s>0?headlightM:taillightM);
-    li.scale.set(1.4,.7,.5); li.position.set(.62,.85,s*2.0); g.add(li);
-    const li2 = li.clone(); li2.position.x = -.62; g.add(li2);
+  const bodyM = std({color:carColors[Math.random()*carColors.length|0], roughness:.3, metalness:.6, clearcoat:1, clearcoatRoughness:.15});
+  const shape = Math.random()<.6? 0 : 1;
+  const body = carBody(shape, bodyM);
+  g.add(body);
+  const bLen = shape===0? 4.2 : 3.6;
+  const bH = shape===0? 1.28 : 1.44;
+  const cabH = shape===0? 1.26 : 1.42;
+  const cabW = shape===0? .74 : .80;
+  // underbody
+  const under = new THREE.Mesh(new THREE.BoxGeometry(1.86,.12,bLen-.2), underMat);
+  under.position.set(0,.06,0); g.add(under);
+  // windows - front windshield (angled)
+  const wsG = new THREE.PlaneGeometry(1.4, .52);
+  const ws = new THREE.Mesh(wsG, M.carGlass);
+  ws.position.set(0, cabH-.18, bLen*.23);
+  ws.rotation.x = -.28; g.add(ws);
+  // rear window
+  const rw = new THREE.Mesh(new THREE.PlaneGeometry(1.3, .44), M.carGlass);
+  rw.position.set(0, cabH-.2, -bLen*.28);
+  rw.rotation.x = shape===0? .22 : .05; g.add(rw);
+  // side windows
+  for(const sx of [1,-1]){
+    const sw = new THREE.Mesh(new THREE.PlaneGeometry(bLen*.32, .38), M.carGlass);
+    sw.position.set(sx*cabW, cabH-.16, .05);
+    sw.rotation.y = sx*Math.PI/2; g.add(sw);
+    // A-pillar
+    const ap = new THREE.Mesh(new THREE.BoxGeometry(.06, .56, .06), bodyM);
+    ap.position.set(sx*(cabW-.02), cabH-.22, bLen*.2); ap.rotation.z = sx*.18; g.add(ap);
+    // B-pillar
+    const bp = new THREE.Mesh(new THREE.BoxGeometry(.06, .5, .06), bodyM);
+    bp.position.set(sx*(cabW-.02), cabH-.24, -.15); g.add(bp);
+    // C-pillar
+    const cp = new THREE.Mesh(new THREE.BoxGeometry(.06, .48, .06), bodyM);
+    cp.position.set(sx*(cabW-.02), cabH-.26, -bLen*.24); cp.rotation.z = -sx*.12; g.add(cp);
+    // side mirror
+    const mirBase = new THREE.Mesh(new THREE.BoxGeometry(.04,.06,.12), bodyM);
+    mirBase.position.set(sx*.96, cabH-.45, bLen*.22); g.add(mirBase);
+    const mirFace = new THREE.Mesh(new THREE.BoxGeometry(.02,.08,.11), chromeTrim);
+    mirFace.position.set(sx*1.0, cabH-.44, bLen*.22); g.add(mirFace);
+    // door line
+    const dl = new THREE.Mesh(new THREE.BoxGeometry(.02,.42,bLen*.38), underMat);
+    dl.position.set(sx*.96, .72, .05); g.add(dl);
+    // wheel well arches
+    for(const wz of [bLen*.32, -bLen*.32]){
+      const arch = new THREE.Mesh(new THREE.TorusGeometry(.42, .04, 6, 10, Math.PI), bodyM);
+      arch.rotation.y = sx*Math.PI/2; arch.position.set(sx*.94, .37, wz); g.add(arch);
+    }
   }
-  for (const [wx,wz] of [[-.95,1.4],[.95,1.4],[-.95,-1.4],[.95,-1.4]]){
-    const wheel = new THREE.Mesh(new THREE.CylinderGeometry(.37,.37,.3,12), M.gunDark);
-    wheel.rotation.z = Math.PI/2; wheel.position.set(wx,.37,wz); g.add(wheel);
+  // headlights
+  for(const sx of [-.62, .62]){
+    const hl = new THREE.Mesh(new THREE.SphereGeometry(.12, 8, 6), headlightM);
+    hl.scale.set(1.2,.7,.4); hl.position.set(sx, .72, bLen/2-.08); g.add(hl);
+    // chrome surround
+    const hr = new THREE.Mesh(new THREE.TorusGeometry(.11, .02, 6, 12), chromeTrim);
+    hr.position.set(sx, .72, bLen/2-.04); g.add(hr);
+  }
+  // taillights
+  for(const sx of [-.62, .62]){
+    const tl = new THREE.Mesh(new THREE.BoxGeometry(.22,.1,.06), taillightM);
+    tl.position.set(sx, .78, -bLen/2+.06); g.add(tl);
+  }
+  // front grille
+  const grille = new THREE.Mesh(new THREE.PlaneGeometry(1.1, .28), std({color:0x1a1a1a, roughness:.6, metalness:.4}));
+  grille.position.set(0, .58, bLen/2-.01); g.add(grille);
+  const grilleChrome = new THREE.Mesh(new THREE.PlaneGeometry(1.14, .02), chromeTrim);
+  grilleChrome.position.set(0, .72, bLen/2); g.add(grilleChrome);
+  // front & rear bumpers
+  for(const fz of [1,-1]){
+    const bmp = new THREE.Mesh(new THREE.BoxGeometry(1.88, .14, .12), chromeTrim);
+    bmp.position.set(0, .42, fz*(bLen/2+.02));
+    const bmpCornerL = new THREE.Mesh(new THREE.BoxGeometry(.12, .14, .18), chromeTrim);
+    bmpCornerL.position.set(-.94, .42, fz*(bLen/2-.04)); g.add(bmpCornerL);
+    const bmpCornerR = bmpCornerL.clone(); bmpCornerR.position.x = .94; g.add(bmpCornerR);
+    g.add(bmp);
+  }
+  // license plate (rear)
+  const plate = new THREE.Mesh(new THREE.PlaneGeometry(.32, .16), std({color:0xdde8f0, roughness:.5}));
+  plate.position.set(0, .54, -bLen/2-.01); plate.rotation.y = Math.PI; g.add(plate);
+  // wheels
+  const wr = shape===0? .34 : .38;
+  for(const [wx,wz] of [[-.92, bLen*.32],[.92, bLen*.32],[-.92, -bLen*.32],[.92, -bLen*.32]]){
+    const w = carWheel(wr);
+    w.position.set(wx, wr, wz);
+    w.rotation.y = Math.PI/2;
+    w.castShadow = true; g.add(w);
   }
   g.position.set(x,0,z); g.rotation.y = ry; scene.add(g);
   colliders.push({x: x - (ry? 1.1 : 0), z: z + (ry? 0 : 1.1), r:1.35}, {x: x + (ry? 1.1 : 0), z: z - (ry? 0 : 1.1), r:1.35});
